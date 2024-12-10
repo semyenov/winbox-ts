@@ -1,0 +1,13 @@
+.winbox.white {
+  & {
+    @apply bg-white;
+  }
+
+  .wb-title {
+    @apply text-black;
+  }
+
+  .wb-control {
+    @apply invert;
+  }
+}

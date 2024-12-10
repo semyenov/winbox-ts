@@ -1,0 +1,74 @@
+.winbox.modern {
+  & {
+    @apply bg-gradient-to-r from-[#ff00f0] to-[#0050ff];
+    @apply rounded-t-xl;
+    @apply animate-[popup_0.3s_cubic-bezier(0.3,1,0.3,1)_forwards];
+  }
+
+  &:not(.min, .focus) {
+    @apply bg-[#666];
+  }
+
+  @media (hover: hover) {
+    &.min:not(:hover) {
+      @apply bg-[#666];
+    }
+
+    .wb-control * {
+      @apply opacity-65;
+    }
+
+    .wb-control *:hover {
+      @apply opacity-100;
+    }
+  }
+
+  @media (hover: none) {
+    &.min {
+      @apply bg-[#666];
+    }
+  }
+
+  &.max {
+    @apply rounded-none;
+  }
+
+  .wb-title {
+    @apply uppercase font-semibold;
+  }
+
+  .wb-body {
+    & {
+      @apply m-1 text-white bg-[#131820];
+    }
+
+    &::-webkit-scrollbar {
+      @apply w-3 h-3;
+    }
+
+    &::-webkit-scrollbar-track {
+      @apply bg-transparent;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      @apply rounded-lg bg-[#263040];
+    }
+
+    &::-webkit-scrollbar-thumb:window-inactive {
+      @apply bg-[#181f2a];
+    }
+
+    &::-webkit-scrollbar-corner {
+      @apply bg-transparent;
+    }
+  }
+}
+
+@keyframes popup {
+  0% {
+    @apply scale-50;
+  }
+  100% {
+    @apply scale-100;
+  }
+}

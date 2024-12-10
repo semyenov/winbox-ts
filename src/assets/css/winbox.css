@@ -1,0 +1,223 @@
+.winbox {
+  --winbox-header-height: 35px;
+
+  @apply fixed left-0 top-0 bg-[#0050ff] shadow-lg transition-all duration-300 ease-in-out text-left touch-none;
+
+  &.modal {
+    .wb-body ~ div,
+    .wb-drag {
+      @apply pointer-events-none;
+    }
+
+    &:before {
+      @apply content-[''] absolute inset-0 bg-inherit rounded-[inherit];
+    }
+
+    &:after {
+      @apply content-[''] absolute -inset-[50vh] bg-[#0d1117] animate-[wb-fade-in_0.2s_ease-out_forwards] -z-10;
+    }
+
+    .wb-header {
+      .wb-control {
+        .wb-min,
+        .wb-max,
+        .wb-full {
+          @apply hidden;
+        }
+      }
+    }
+  }
+
+  &.max {
+    @apply shadow-none;
+
+    .wb-header {
+      .wb-drag {
+        @apply cursor-default;
+      }
+    }
+
+    .wb-body {
+      @apply !m-0;
+
+      ~ div {
+        @apply pointer-events-none;
+      }
+    }
+  }
+
+  &.min {
+    .wb-header {
+      .wb-control {
+        .wb-full,
+        .wb-min {
+          @apply hidden;
+        }
+      }
+      .wb-drag {
+        @apply cursor-default;
+      }
+    }
+
+    .wb-body > * {
+      @apply hidden;
+    }
+  }
+
+  &.hide {
+    @apply hidden;
+  }
+
+  iframe {
+    @apply absolute w-full h-full border-0;
+  }
+
+  .wb-header {
+    @apply absolute left-0 top-0 w-full h-[var(--winbox-header-height)] leading-[var(--winbox-header-height)] text-white overflow-hidden z-10;
+
+    .wb-control {
+      @apply float-right h-full max-w-full text-center pr-4;
+
+      * {
+        @apply inline-block w-6 h-full max-w-full bg-center bg-no-repeat cursor-pointer;
+      }
+
+      .wb-min {
+        background-image: url("../img/min.svg");
+        @apply bg-[length:14px_auto] bg-[center_calc(50%+6px)];
+      }
+
+      .wb-max {
+        background-image: url("../img/max.svg");
+        @apply bg-[length:17px_auto];
+      }
+
+      .wb-close {
+        background-image: url("../img/close.svg");
+        @apply bg-[length:15px_auto] bg-[5px_center];
+      }
+
+      .wb-full {
+        background-image: url("../img/full.svg");
+        @apply bg-[length:16px_auto];
+      }
+    }
+
+    .wb-drag {
+      @apply h-full pl-4 cursor-move;
+
+      .wb-title {
+        @apply font-sans whitespace-nowrap overflow-hidden text-ellipsis;
+      }
+
+      .wb-icon {
+        @apply hidden w-4 h-full -my-[1px] mx-[8px] -ml-[3px] float-left bg-no-repeat bg-contain bg-center;
+      }
+    }
+  }
+
+  .wb-body {
+    @apply absolute top-[var(--winbox-header-height)] inset-x-0 bottom-0 overflow-auto touch-auto will-change-contents bg-white mt-0 z-0;
+    -webkit-overflow-scrolling: touch;
+    overflow-scrolling: touch;
+
+    .wb-hide {
+      @apply hidden;
+    }
+
+    .wb-show {
+      @apply block;
+    }
+  }
+
+  /* Resize handles */
+  .wb-n {
+    @apply absolute -top-2 inset-x-0 h-4 cursor-n-resize z-20;
+  }
+  .wb-e {
+    @apply absolute inset-y-0 -right-2 w-4 cursor-w-resize z-20;
+  }
+  .wb-s {
+    @apply absolute -bottom-2 inset-x-0 h-4 cursor-n-resize z-20;
+  }
+  .wb-w {
+    @apply absolute inset-y-0 -left-2 w-4 cursor-w-resize z-20;
+  }
+
+  .wb-nw {
+    @apply absolute -top-2 -left-2 w-4 h-4 cursor-nw-resize z-20;
+  }
+  .wb-ne {
+    @apply absolute -top-2 -right-2 w-4 h-4 cursor-ne-resize z-20;
+  }
+  .wb-sw {
+    @apply absolute -bottom-2 -left-2 w-4 h-4 cursor-ne-resize z-20;
+  }
+  .wb-se {
+    @apply absolute -bottom-2 -right-2 w-4 h-4 cursor-nw-resize z-20;
+  }
+}
+
+body.wb-lock {
+  .winbox {
+    @apply will-change-[left,top,width,height] transition-none;
+  }
+
+  iframe {
+    @apply pointer-events-none;
+  }
+}
+
+@keyframes wb-fade-in {
+  0% {
+    @apply opacity-0;
+  }
+  100% {
+    @apply opacity-85;
+  }
+}
+
+.no-animation {
+  @apply transition-none;
+}
+
+.no-shadow {
+  @apply shadow-none;
+}
+
+.no-header {
+  .wb-header {
+    @apply hidden;
+  }
+  .wb-body {
+    @apply top-0;
+  }
+}
+
+.no-min .wb-min {
+  @apply hidden;
+}
+
+.no-max .wb-max {
+  @apply hidden;
+}
+
+.no-full .wb-full {
+  @apply hidden;
+}
+
+.no-close .wb-close {
+  @apply hidden;
+}
+
+.no-resize .wb-body ~ div {
+  @apply hidden;
+}
+
+.no-move:not(.min) .wb-title {
+  @apply pointer-events-none;
+}
+
+.wb-show {
+  @apply hidden;
+}

@@ -6,11 +6,6 @@ import nesting from "tailwindcss/nesting";
 // https://vite.dev/config/
 export default defineConfig({
   publicDir: "./public",
-  resolve: {
-    alias: {
-      "@": "./src",
-    },
-  },
   preview: {
     port: 3000,
     open: true,
@@ -20,6 +15,8 @@ export default defineConfig({
     assetsDir: "./assets",
     cssCodeSplit: true,
     outDir: "./dist",
+    target: "esnext",
+    minify: true,
     lib: {
       name: "winbox",
       entry: ["./src/winbox.ts", "./src/assets/css/winbox.css"],

@@ -251,7 +251,6 @@ export default class WinBox {
     );
 
     this.overflow = params.overflow || false;
-    this.index = params.index || 0;
     this.min = false;
     this.max = false;
     this.full = false;

@@ -103,7 +103,7 @@ window.examples = {
 
       // appearance:
       title: "All Options",
-      background: "#fff",
+      background: "#333",
       border: 4,
       header: 45,
 
@@ -146,10 +146,10 @@ window.examples = {
         console.log("Hide:", this.id);
       },
       onfocus: function () {
-        this.setBackground("#fff");
+        this.setBackground("#000");
       },
       onblur: function () {
-        this.setBackground("#999");
+        this.setBackground("#333");
       },
       onresize: function (w, h) {
         this.body.textContent = `width: ${w}, height: ${h}`;
@@ -270,7 +270,7 @@ window.buttons = {
         ((Math.random() * 255) | 0) +
         "," +
         ((Math.random() * 255) | 0) +
-        ")"
+        ")",
     );
   },
   modal: function () {

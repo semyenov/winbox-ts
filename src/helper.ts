@@ -9,7 +9,7 @@ export function addListener(
   node: Window | Element | null,
   event: string,
   fn: EventListenerOrEventListenerObject,
-  opt?: AddEventListenerOptions | boolean
+  opt?: AddEventListenerOptions | boolean,
 ): void {
   node?.addEventListener(event, fn, opt || false);
 }
@@ -21,7 +21,7 @@ export function removeListener(
   node: Window | Element | null,
   event: string,
   fn: EventListenerOrEventListenerObject,
-  opt?: AddEventListenerOptions | boolean
+  opt?: AddEventListenerOptions | boolean,
 ): void {
   node?.removeEventListener(event, fn, opt || false);
 }

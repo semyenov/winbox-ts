@@ -1,4 +1,7 @@
+import { createApp, defineComponent } from "vue";
 import WinBox from "./src/winbox";
+import App from "./App.vue";
+
 let winbox: WinBox;
 
 declare global {
@@ -289,3 +292,6 @@ window.buttons = {
     winbox.close(true);
   },
 };
+
+const app = createApp(App);
+app.mount("#app");

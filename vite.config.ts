@@ -1,4 +1,5 @@
 import { defineConfig } from "vite";
+import vue from "@vitejs/plugin-vue";
 import svgr from "vite-plugin-svgr";
 import tailwindcss from "tailwindcss";
 import nesting from "tailwindcss/nesting";
@@ -45,6 +46,7 @@ export default defineConfig({
     },
   },
   plugins: [
+    vue(),
     svgr({
       svgrOptions: {
         typescript: true,

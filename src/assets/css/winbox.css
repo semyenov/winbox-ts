@@ -118,7 +118,7 @@
   }
 
   .wb-body {
-    @apply absolute top-[var(--winbox-header-height)] inset-x-0 bottom-0 overflow-auto touch-auto will-change-contents bg-white mt-0 z-0;
+    @apply absolute top-[var(--winbox-header-height)] inset-x-0 bottom-0 overflow-auto touch-auto will-change-contents bg-white mt-0 z-0 px-4;
     -webkit-overflow-scrolling: touch;
     overflow-scrolling: touch;
 

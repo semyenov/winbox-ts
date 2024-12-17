@@ -10,77 +10,42 @@
         <span class="wb-close" @click.prevent="close" />
       </div>
       <!-- Drag -->
-      <div class="wb-drag" @mousedown.prevent="(e) => mousedownHandler('drag')(e)"
-        @touchstart.prevent="(e) => mousedownHandler('drag')(e)">
+      <div class="wb-drag" @mousedown="(e) => mousedownHandler('drag')(e)"
+        @touchstart="(e) => mousedownHandler('drag')(e)">
         <!-- Icon -->
         <div v-if="icon" class="wb-icon" :style="iconStyle" />
         <!-- Title -->
         <div class="wb-title">
-          <slot v-if="slots.title" name="title" :title="title" />
+          <slot v-if="$slots.title" name="title" :title="title" />
           <span v-else v-text="title" />
         </div>
       </div>
     </div>
     <!-- Body -->
     <div class="wb-body" :style="bodyStyle">
-      <slot v-if="slots.default" name="default" />
+      <slot v-if="$slots.default" name="default" />
     </div>
     <!-- Resize handles -->
-    <div v-for="dir in RESIZE_DIRECTIONS" :key="dir" :class="`wb-${dir}`"
-      @mousedown.prevent="(e) => mousedownHandler(dir)(e)" @touchstart.prevent="(e) => mousedownHandler(dir)(e)" />
+    <div v-for="dir in RESIZE_DIRECTIONS" :key="dir" :class="`wb-${dir}`" @mousedown="(e) => mousedownHandler(dir)(e)"
+      @touchstart="(e) => mousedownHandler(dir)(e)" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, VNode } from 'vue'
-import {
-  RESIZE_DIRECTIONS,
-  STACK_MIN,
-  type WindowPosition,
-  type WindowSize,
-  type WindowState,
-  type ResizeDirection
-} from './constants'
+import { ref, computed, onMounted, onScopeDispose, useTemplateRef } from 'vue'
+import { RESIZE_DIRECTIONS, STACK_MIN } from './constants'
+import { useWindowControl } from '../composables/useWindowControl'
+import type { WinBoxProps, DragState, WinBoxEmits, ResizeDirection } from './types'
 
-// Props with proper TypeScript interface
-interface Props {
-  title?: string
-  width?: number | string
-  height?: number | string
-  x?: number | string
-  y?: number | string
-  minWidth?: number
-  minHeight?: number
-  maxWidth?: number
-  maxHeight?: number
-  noMin?: boolean
-  noMax?: boolean
-  noFull?: boolean
-  noClose?: boolean
-  modal?: boolean
-  background?: string
-  icon?: string
-  index?: number
-}
+// Add root state
+const root = ref({ width: window.innerWidth, height: window.innerHeight })
 
-// Define emits with TypeScript types
-interface Emits {
-  (e: 'close'): void
-  (e: 'focus'): void
-  (e: 'blur'): void
-  (e: 'minimize'): void
-  (e: 'maximize'): void
-  (e: 'restore'): void
-  (e: 'fullscreen'): void
-  (e: 'move', x: number, y: number): void
-  (e: 'resize', width: number, height: number): void
-}
-
-// Window management
+// Add fullscreen variables
 let fullscreenRequest: string | null = null
 let fullscreenExit: string | null = null
 
-const props = withDefaults(defineProps<Props>(), {
+// Props with proper TypeScript interface
+const props = withDefaults(defineProps<WinBoxProps>(), {
   title: '',
   width: 500,
   height: 300,
@@ -93,36 +58,27 @@ const props = withDefaults(defineProps<Props>(), {
   modal: false,
 })
 
-const emit = defineEmits<Emits>()
+// Define emits
+const emit = defineEmits<WinBoxEmits>()
 
-const slots = defineSlots<{
-  title?(props: { title: string }): VNode
-  default?(): VNode
-}>()
+// Use window control composable
+const {
+  windowState,
+  position,
+  size,
+  savedPosition,
+  savedSize,
+  move,
+  resize
+} = useWindowControl(emit)
 
 // State management using refs
-const windowRef = ref<HTMLElement>()
 const id = ref(`winbox-${Math.random().toString(36).substr(2, 9)}`)
+const windowRef = useTemplateRef('windowRef')
 
-const windowState = ref<WindowState>({
-  status: 'normal',
-  active: false
-})
-
-const position = ref<WindowPosition>({ x: 0, y: 0 })
-const size = ref<WindowSize>({ width: 0, height: 0 })
-const savedPosition = ref<WindowPosition>({ x: 0, y: 0 })
-const savedSize = ref<WindowSize>({ width: 0, height: 0 })
-
-// Window dimensions
-const root = ref({
-  width: window.innerWidth,
-  height: window.innerHeight
-})
-
-// Drag state
-const dragState = ref({
-  direction: '',
+// Drag state with proper typing
+const dragState = ref<DragState>({
+  direction: 'drag',
   startX: 0,
   startY: 0,
   startPosX: 0,
@@ -157,26 +113,6 @@ const classNames = computed(() => {
   if (windowState.value.active) classes.push('focus')
   return classes
 })
-
-
-// Move functions
-const move = (x?: number, y?: number) => {
-  const newX = typeof x === 'number' ? x : position.value.x
-  const newY = typeof y === 'number' ? y : position.value.y
-  if (newX !== position.value.x || newY !== position.value.y) {
-    position.value = { x: newX, y: newY }
-    emit('move', newX, newY)
-  }
-}
-
-const resize = (w?: number, h?: number) => {
-  const newWidth = Math.min(Math.max(typeof w === 'number' ? w : size.value.width, props.minWidth || 200), props.maxWidth || Infinity)
-  const newHeight = Math.min(Math.max(typeof h === 'number' ? h : size.value.height, props.minHeight || 100), props.maxHeight || Infinity)
-  if (newWidth !== size.value.width || newHeight !== size.value.height) {
-    size.value = { width: newWidth, height: newHeight }
-    emit('resize', size.value.width, size.value.height)
-  }
-}
 
 // Add focus method
 const focus = () => {
@@ -275,7 +211,6 @@ const close = () => {
   emit('close')
 }
 
-
 // Methods
 const windowResizeHandler = () => {
   root.value = {
@@ -340,40 +275,42 @@ const mousedownHandler = (direction: ResizeDirection | 'drag') => (evt: Event) =
 // Event handlers
 const mousemoveHandler = (evt: Event) => {
   const e = evt as MouseEvent | TouchEvent
-  const { pageX, pageY } = 'touches' in e ? e.touches[0] : e as MouseEvent
+
+  const { pageX, pageY } = 'touches' in e
+    ? e.touches[0]
+    : e as MouseEvent
+
   const deltaX = pageX - dragState.value.startX
   const deltaY = pageY - dragState.value.startY
 
   if (dragState.value.direction === 'drag') {
-    move(
-      dragState.value.startPosX + deltaX,
-      dragState.value.startPosY + deltaY
-    )
-  } else {
-    // Handle resize
-    let newWidth = dragState.value.startWidth
-    let newHeight = dragState.value.startHeight
-    let newX = dragState.value.startPosX
-    let newY = dragState.value.startPosY
-
-    if (dragState.value.direction.includes('e')) {
-      newWidth = dragState.value.startWidth + deltaX
-    }
-    if (dragState.value.direction.includes('w')) {
-      newWidth = dragState.value.startWidth - deltaX
-      newX = dragState.value.startPosX + deltaX
-    }
-    if (dragState.value.direction.includes('s')) {
-      newHeight = dragState.value.startHeight + deltaY
-    }
-    if (dragState.value.direction.includes('n')) {
-      newHeight = dragState.value.startHeight - deltaY
-      newY = dragState.value.startPosY + deltaY
-    }
-
-    move(newX, newY)
-    resize(newWidth, newHeight)
+    move(dragState.value.startPosX + deltaX, dragState.value.startPosY + deltaY)
+    return
   }
+
+  // Handle resize
+  let newX = dragState.value.startPosX
+  let newY = dragState.value.startPosY
+  let newWidth = dragState.value.startWidth
+  let newHeight = dragState.value.startHeight
+
+  if (dragState.value.direction.includes('e')) {
+    newWidth = dragState.value.startWidth + deltaX
+  }
+  if (dragState.value.direction.includes('w')) {
+    newWidth = dragState.value.startWidth - deltaX
+    newX = dragState.value.startPosX + deltaX
+  }
+  if (dragState.value.direction.includes('s')) {
+    newHeight = dragState.value.startHeight + deltaY
+  }
+  if (dragState.value.direction.includes('n')) {
+    newHeight = dragState.value.startHeight - deltaY
+    newY = dragState.value.startPosY + deltaY
+  }
+
+  resize(newWidth, newHeight)
+  move(newX, newY)
 }
 
 const mouseupHandler = () => {
@@ -402,14 +339,14 @@ onMounted(() => {
     height: Number(props.height)
   }
 
-  move(position.value.x, position.value.y)
   resize(size.value.width, size.value.height)
+  move(position.value.x, position.value.y)
 
   window.addEventListener('resize', windowResizeHandler);
   document.addEventListener('fullscreenchange', windowFullscreenHandler);
 })
 
-onBeforeUnmount(() => {
+onScopeDispose(() => {
   window.removeEventListener('resize', windowResizeHandler)
   document.removeEventListener('fullscreenchange', windowFullscreenHandler)
 })

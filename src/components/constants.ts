@@ -1,5 +1,9 @@
+import { ResizeDirection } from "./types";
+
 // Window resize directions
-export const RESIZE_DIRECTIONS = [
+export const EVENT_OPTIONS = { passive: false } as const;
+export const STACK_MIN: HTMLElement[] = [];
+export const RESIZE_DIRECTIONS: ResizeDirection[] = [
   "n",
   "s",
   "w",
@@ -9,28 +13,3 @@ export const RESIZE_DIRECTIONS = [
   "se",
   "sw",
 ] as const;
-
-export type ResizeDirection = typeof RESIZE_DIRECTIONS[number];
-
-// Event options for listeners
-export const EVENT_OPTIONS = { passive: false } as const;
-
-// Stack for minimized windows
-export const STACK_MIN: HTMLElement[] = [];
-
-// Type definitions
-export interface WindowPosition {
-  x: number;
-  y: number;
-}
-
-export interface WindowSize {
-  width: number;
-  height: number;
-}
-
-export type WindowStatus = "normal" | "min" | "max" | "full";
-export interface WindowState {
-  status: WindowStatus;
-  active: boolean;
-}

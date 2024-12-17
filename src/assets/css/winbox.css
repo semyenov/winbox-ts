@@ -3,6 +3,7 @@
 
   @apply fixed left-0 top-0 bg-[#0050ff] shadow-lg transition-all duration-300 ease-in-out text-left touch-none;
 
+
   &.modal {
     .wb-body ~ div,
     .wb-drag {
@@ -135,15 +136,14 @@
     @apply absolute -top-2 inset-x-0 h-4 cursor-n-resize z-20;
   }
   .wb-e {
-    @apply absolute inset-y-0 -right-2 w-4 cursor-w-resize z-20;
+    @apply absolute inset-y-0 -right-2 w-4 cursor-e-resize z-20;
   }
   .wb-s {
-    @apply absolute -bottom-2 inset-x-0 h-4 cursor-n-resize z-20;
+    @apply absolute -bottom-2 inset-x-0 h-4 cursor-s-resize z-20;
   }
   .wb-w {
     @apply absolute inset-y-0 -left-2 w-4 cursor-w-resize z-20;
   }
-
   .wb-nw {
     @apply absolute -top-2 -left-2 w-4 h-4 cursor-nw-resize z-20;
   }
@@ -151,10 +151,10 @@
     @apply absolute -top-2 -right-2 w-4 h-4 cursor-ne-resize z-20;
   }
   .wb-sw {
-    @apply absolute -bottom-2 -left-2 w-4 h-4 cursor-ne-resize z-20;
+    @apply absolute -bottom-2 -left-2 w-4 h-4 cursor-sw-resize z-20;
   }
   .wb-se {
-    @apply absolute -bottom-2 -right-2 w-4 h-4 cursor-nw-resize z-20;
+    @apply absolute -bottom-2 -right-2 w-4 h-4 cursor-se-resize z-20;
   }
 }
 

@@ -6,7 +6,7 @@
  * Add event listener to a DOM node
  */
 export function addListener(
-  node: Window | Element | null,
+  node: Window | Element | Document | null,
   event: string,
   fn: EventListenerOrEventListenerObject,
   opt?: AddEventListenerOptions | boolean,
@@ -18,7 +18,7 @@ export function addListener(
  * Remove event listener from a DOM node
  */
 export function removeListener(
-  node: Window | Element | null,
+  node: Window | Element | Document | null,
   event: string,
   fn: EventListenerOrEventListenerObject,
   opt?: AddEventListenerOptions | boolean,

@@ -1,425 +1,416 @@
 <template>
-    <div :id="id" :class="['winbox', ...classNames]" ref="windowRef" :style="windowStyle">
-        <div class="wb-header">
-            <div class="wb-control">
-                <span v-if="!noMin" class="wb-min"
-                    @click.prevent="() => { if (min) { restore() } else { minimize() } }"></span>
-                <span v-if="!noMax" class="wb-max"
-                    @click.prevent="() => { if (max) { restore() } else { maximize() } }"></span>
-                <span v-if="!noFull" class="wb-full"
-                    @click.prevent="() => { if (full) { restore() } else { fullscreen() } }"></span>
-                <span class="wb-close" @click.prevent="close"></span>
-            </div>
-            <div class="wb-drag">
-                <div v-if="icon" class="wb-icon" :style="iconStyle"></div>
-                <div class="wb-title">{{ title }}</div>
-            </div>
+  <div :id="id" :class="['winbox', ...classNames]" ref="windowRef" :style="windowStyle">
+    <!-- Header -->
+    <div class="wb-header">
+      <!-- Controls -->
+      <div class="wb-control">
+        <span v-if="!noMin" class="wb-min" @click.prevent="minimize" />
+        <span v-if="!noMax" class="wb-max" @click.prevent="maximize" />
+        <span v-if="!noFull" class="wb-full" @click.prevent="fullscreen" />
+        <span class="wb-close" @click.prevent="close" />
+      </div>
+      <!-- Drag -->
+      <div class="wb-drag" @mousedown.prevent="(e) => mousedownHandler('drag')(e)"
+        @touchstart.prevent="(e) => mousedownHandler('drag')(e)">
+        <!-- Icon -->
+        <div v-if="icon" class="wb-icon" :style="iconStyle" />
+        <!-- Title -->
+        <div class="wb-title">
+          <slot v-if="slots.title" name="title" :title="title" />
+          <span v-else v-text="title" />
         </div>
-        <div class="wb-body" :style="bodyStyle">
-            <slot></slot>
-        </div>
-        <!-- Resize handles -->
-        <div v-for="dir in RESIZE_DIRECTIONS" :key="dir" :class="`wb-${dir}`"></div>
+      </div>
     </div>
+    <!-- Body -->
+    <div class="wb-body" :style="bodyStyle">
+      <slot v-if="slots.default" name="default" />
+    </div>
+    <!-- Resize handles -->
+    <div v-for="dir in RESIZE_DIRECTIONS" :key="dir" :class="`wb-${dir}`"
+      @mousedown.prevent="(e) => mousedownHandler(dir)(e)" @touchstart.prevent="(e) => mousedownHandler(dir)(e)" />
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { addListener, removeListener, preventEvent } from '../helper'
+import { ref, computed, onMounted, onBeforeUnmount, VNode } from 'vue'
+import {
+  RESIZE_DIRECTIONS,
+  STACK_MIN,
+  type WindowPosition,
+  type WindowSize,
+  type WindowState,
+  type ResizeDirection
+} from './constants'
 
-// Constants
-const EVENT_OPTIONS = { capture: true, passive: true }
-const STACK_MIN: any[] = []
-const RESIZE_DIRECTIONS = ['n', 's', 'w', 'e', 'nw', 'ne', 'se', 'sw']
-
-let dblclick_timer = 0
-
-// Helper functions
-const cancel_fullscreen = () => {
-    if (document.fullscreenElement) {
-        document.exitFullscreen()
-        return true
-    }
-    return false
-}
-const move = (x?: number, y?: number, save?: boolean) => {
-    console.log('move', { x, y, save })
-
-    if (save) {
-        savedPosition.value = {
-            x: position.value.x,
-            y: position.value.y
-        }
-    }
-
-    position.value = { x: x || 0, y: y || 0 }
-    emit('move', position.value.x, position.value.y)
-}
-
-const resize = (w?: number, h?: number, save?: boolean) => {
-    console.log('resize', { w, h, save })
-
-    if (save) {
-        savedSize.value = {
-            width: size.value.width,
-            height: size.value.height
-        }
-    }
-
-    size.value = {
-        width: Math.max(w || size.value.width, props.minWidth || 200),
-        height: Math.max(h || size.value.height, props.minHeight || 100)
-    }
-    emit('resize', size.value.width, size.value.height)
-}
-
-// Event handlers
-const handler_mousemove = (evt: Event) => {
-    const e = evt as MouseEvent | TouchEvent
-    const { pageX, pageY } = 'touches' in e ? e.touches[0] : e as MouseEvent
-    const deltaX = pageX - x
-    const deltaY = pageY - y
-
-    if (dir === 'drag') {
-        position.value = {
-            x: startPosX + deltaX,
-            y: startPosY + deltaY
-        }
-        emit('move', position.value.x, position.value.y)
-    } else {
-        // Handle resize
-        let newWidth = startWidth
-        let newHeight = startHeight
-        let newX = startPosX
-        let newY = startPosY
-
-        if (dir.includes('e')) {
-            newWidth = startWidth + deltaX
-        }
-        if (dir.includes('w')) {
-            newWidth = startWidth - deltaX
-            newX = startPosX + deltaX
-        }
-        if (dir.includes('s')) {
-            newHeight = startHeight + deltaY
-        }
-        if (dir.includes('n')) {
-            newHeight = startHeight - deltaY
-            newY = startPosY + deltaY
-        }
-
-        // Apply constraints
-        newWidth = Math.max(Math.min(newWidth, props.maxWidth || Infinity), props.minWidth || 200)
-        newHeight = Math.max(Math.min(newHeight, props.maxHeight || Infinity), props.minHeight || 100)
-
-        position.value = { x: newX, y: newY }
-        size.value = { width: newWidth, height: newHeight }
-        emit('resize', newWidth, newHeight)
-    }
-}
-
-const handler_mouseup = () => {
-    document.body.classList.remove('wb-lock')
-    removeListener(window, 'mousemove', handler_mousemove)
-    removeListener(window, 'mouseup', handler_mouseup)
-    removeListener(window, 'touchmove', handler_mousemove)
-    removeListener(window, 'touchend', handler_mouseup)
-}
-
-// Update emits to include fullscreen
-const emit = defineEmits<{
-    (e: 'close'): void
-    (e: 'focus'): void
-    (e: 'blur'): void
-    (e: 'minimize'): void
-    (e: 'maximize'): void
-    (e: 'restore'): void
-    (e: 'fullscreen'): void
-    (e: 'move', x: number, y: number): void
-    (e: 'resize', width: number, height: number): void
-}>()
-
+// Props with proper TypeScript interface
 interface Props {
-    title?: string
-    width?: number | string
-    height?: number | string
-    x?: number | string
-    y?: number | string
-    minWidth?: number
-    minHeight?: number
-    maxWidth?: number
-    maxHeight?: number
-    noMin?: boolean
-    noMax?: boolean
-    noFull?: boolean
-    noClose?: boolean
-    modal?: boolean
-    background?: string
-    icon?: string
-    mount?: HTMLElement
-    class?: string | string[]
-    index?: number
+  title?: string
+  width?: number | string
+  height?: number | string
+  x?: number | string
+  y?: number | string
+  minWidth?: number
+  minHeight?: number
+  maxWidth?: number
+  maxHeight?: number
+  noMin?: boolean
+  noMax?: boolean
+  noFull?: boolean
+  noClose?: boolean
+  modal?: boolean
+  background?: string
+  icon?: string
+  index?: number
 }
 
-const props = withDefaults(defineProps<Props>(), {
-    title: '',
-    width: 500,
-    height: 300,
-    minWidth: 200,
-    minHeight: 100,
-    noMin: false,
-    noMax: false,
-    noFull: false,
-    noClose: false,
-    modal: false,
-})
-
-// State
-const windowRef = ref<HTMLElement>()
-const id = ref(`winbox-${Math.random().toString(36).substr(2, 9)}`)
-const min = ref(false)
-const max = ref(false)
-const full = ref(false)
-const focused = ref(false)
-const position = ref({ x: 0, y: 0 })
-const size = ref({ width: 0, height: 0 })
-const savedPosition = ref({ x: 0, y: 0 })
-const savedSize = ref({ width: 0, height: 0 })
+// Define emits with TypeScript types
+interface Emits {
+  (e: 'close'): void
+  (e: 'focus'): void
+  (e: 'blur'): void
+  (e: 'minimize'): void
+  (e: 'maximize'): void
+  (e: 'restore'): void
+  (e: 'fullscreen'): void
+  (e: 'move', x: number, y: number): void
+  (e: 'resize', width: number, height: number): void
+}
 
 // Window management
-const root_w = ref(window.innerWidth)
-const root_h = ref(window.innerHeight)
-let prefix_request: string | null = null
-let is_fullscreen: any = null
+let fullscreenRequest: string | null = null
+let fullscreenExit: string | null = null
 
-// Add state variables for drag/resize operations
-let dir = ''
-let x = 0
-let y = 0
-let startPosX = 0
-let startPosY = 0
-let startWidth = 0
-let startHeight = 0
+const props = withDefaults(defineProps<Props>(), {
+  title: '',
+  width: 500,
+  height: 300,
+  minWidth: 200,
+  minHeight: 100,
+  noMin: false,
+  noMax: false,
+  noFull: false,
+  noClose: false,
+  modal: false,
+})
 
-// Create a reference to the mousedown handler
-const handleResize = () => {
-    root_w.value = window.innerWidth
-    root_h.value = window.innerHeight
-}
-const mousedownHandler = (direction: string) => (evt: Event) => {
-    const e = evt as MouseEvent | TouchEvent
-    preventEvent(e)
-    focus()
+const emit = defineEmits<Emits>()
 
-    if (dir === "drag") {
-        if (min.value) {
-            restore();
-            return;
-        }
-        if (!props.noMax) {
-            const now = Date.now();
-            const diff = now - dblclick_timer;
-            dblclick_timer = now;
-            if (diff < 300) {
-                max.value ? restore() : maximize();
-                return;
-            }
-        }
-    }
+const slots = defineSlots<{
+  title?(props: { title: string }): VNode
+  default?(): VNode
+}>()
 
-    if (!max.value && !min.value) {
-        document.body.classList.add('wb-lock')
-        dir = direction
+// State management using refs
+const windowRef = ref<HTMLElement>()
+const id = ref(`winbox-${Math.random().toString(36).substr(2, 9)}`)
 
-        const { pageX, pageY } = 'touches' in e ? e.touches[0] : e as MouseEvent
-        x = pageX
-        y = pageY
-        startPosX = position.value.x
-        startPosY = position.value.y
-        startWidth = size.value.width
-        startHeight = size.value.height
+const windowState = ref<WindowState>({
+  status: 'normal',
+  active: false
+})
 
-        addListener(window, 'mousemove', handler_mousemove)
-        addListener(window, 'mouseup', handler_mouseup)
-        addListener(window, 'touchmove', handler_mousemove)
-        addListener(window, 'touchend', handler_mouseup)
-    }
-}
+const position = ref<WindowPosition>({ x: 0, y: 0 })
+const size = ref<WindowSize>({ width: 0, height: 0 })
+const savedPosition = ref<WindowPosition>({ x: 0, y: 0 })
+const savedSize = ref<WindowSize>({ width: 0, height: 0 })
 
-// Computed styles and classes
+// Window dimensions
+const root = ref({
+  width: window.innerWidth,
+  height: window.innerHeight
+})
+
+// Drag state
+const dragState = ref({
+  direction: '',
+  startX: 0,
+  startY: 0,
+  startPosX: 0,
+  startPosY: 0,
+  startWidth: 0,
+  startHeight: 0,
+  dblClickTimer: 0
+})
+
+// Computed properties
 const windowStyle = computed(() => ({
-    width: `${size.value.width}px`,
-    height: `${size.value.height}px`,
-    transform: `translate(${position.value.x}px, ${position.value.y}px)`,
-    background: props.background,
-    zIndex: props.index
+  width: `${size.value.width}px`,
+  height: `${size.value.height}px`,
+  left: `${position.value.x}px`,
+  top: `${position.value.y}px`,
+  background: props.background,
+  zIndex: props.index
 }))
 
 const bodyStyle = computed(() => ({
-    height: 'calc(100% - 35px)'
+  height: 'calc(100% - 35px)'
 }))
 
 const iconStyle = computed(() =>
-    props.icon ? { backgroundImage: `url(${props.icon})` } : {}
+  props.icon ? { backgroundImage: `url(${props.icon})` } : {}
 )
 
 const classNames = computed(() => {
-    const classes = []
-    if (props.class) {
-        if (typeof props.class === 'string') {
-            classes.push(props.class)
-        } else {
-            classes.push(...props.class)
-        }
-    }
-    if (props.modal) classes.push('modal')
-    if (min.value) classes.push('min')
-    if (max.value) classes.push('max')
-    if (focused.value) classes.push('focus')
-    return classes
+  const classes: string[] = []
+  if (props.modal) classes.push('modal')
+  if (windowState.value.status !== 'normal') classes.push(windowState.value.status)
+  if (windowState.value.active) classes.push('focus')
+  return classes
 })
+
+
+// Move functions
+const move = (x?: number, y?: number) => {
+  const newX = typeof x === 'number' ? x : position.value.x
+  const newY = typeof y === 'number' ? y : position.value.y
+  if (newX !== position.value.x || newY !== position.value.y) {
+    position.value = { x: newX, y: newY }
+    emit('move', newX, newY)
+  }
+}
+
+const resize = (w?: number, h?: number) => {
+  const newWidth = Math.min(Math.max(typeof w === 'number' ? w : size.value.width, props.minWidth || 200), props.maxWidth || Infinity)
+  const newHeight = Math.min(Math.max(typeof h === 'number' ? h : size.value.height, props.minHeight || 100), props.maxHeight || Infinity)
+  if (newWidth !== size.value.width || newHeight !== size.value.height) {
+    size.value = { width: newWidth, height: newHeight }
+    emit('resize', size.value.width, size.value.height)
+  }
+}
+
+// Add focus method
+const focus = () => {
+  if (!windowState.value.active) {
+    windowState.value.active = true
+    emit('focus')
+  }
+}
+
+// Add blur method
+const blur = () => {
+  if (windowState.value.active) {
+    windowState.value.active = false
+    emit('blur')
+  }
+}
 
 // Window control methods
 const minimize = () => {
-    if (is_fullscreen) {
-        cancel_fullscreen()
-    }
-    if (max.value) {
-        max.value = false
-    }
-    if (!min.value) {
-        STACK_MIN.push(windowRef.value)
-        min.value = true
-        emit('minimize')
-    }
+  if (windowState.value.status !== 'normal') {
+    restore()
+    return
+  }
+
+  // Save state before minimizing
+  savedPosition.value = { ...position.value }
+  savedSize.value = { ...size.value }
+
+  blur()
+  STACK_MIN.push(windowRef.value as HTMLElement)
+  windowState.value.status = 'min'
+
+  resize(0, 35)
+  move(root.value.width / 2 - 0 / 2, root.value.height / 2 - 35 / 2)
+
+  emit('minimize')
 }
 
 const maximize = () => {
-    console.log('maximize')
-    if (is_fullscreen) {
-        cancel_fullscreen()
-    }
-    if (min.value) {
-        // remove_min_stack()
-    }
-    if (!max.value) {
-        max.value = true
-        resize(root_w.value, root_h.value, true)
-        move(0, 0, true)
-        emit('maximize')
-    }
-}
+  if (windowState.value.status !== 'normal') {
+    restore()
+    return
+  }
 
-const restore = () => {
-    console.log('restore')
-    if (min.value) {
-        resize(savedSize.value.width, savedSize.value.height, false)
-        move(savedPosition.value.x, savedPosition.value.y, false)
-        emit('restore')
-    }
-    if (max.value) {
-        max.value = false
-        resize(savedSize.value.width, savedSize.value.height, false)
-        move(savedPosition.value.x, savedPosition.value.y, false)
-        emit('restore')
-    }
+  // Save state before maximizing
+  savedPosition.value = { ...position.value }
+  savedSize.value = { ...size.value }
+
+  windowState.value.status = 'max'
+
+  resize(root.value.width, root.value.height)
+  move(0, 0)
+
+  emit('maximize')
 }
 
 const fullscreen = () => {
-    if (min.value) {
-        resize()
-        move()
+  if (windowState.value.status !== 'normal') {
+    restore()
+    return
+  }
+
+  if (fullscreenRequest && windowRef.value) {
+    const requestMethod = fullscreenRequest as keyof HTMLElement
+    if (typeof windowRef.value[requestMethod] === 'function') {
+      (windowRef.value[requestMethod] as Function).call(windowRef.value)
+
+      windowState.value.status = 'full'
+      emit('fullscreen')
+
+      return
     }
-    if (!is_fullscreen && prefix_request && windowRef.value) {
-        const requestMethod = prefix_request as keyof HTMLElement
-        if (typeof windowRef.value[requestMethod] === 'function') {
-            (windowRef.value[requestMethod] as Function).call(windowRef.value)
-            is_fullscreen = windowRef.value
-            full.value = true
-            emit('fullscreen')
-        }
+  }
+}
+
+const restore = () => {
+  if (windowState.value.status === 'full') {
+    if (fullscreenExit && windowRef.value) {
+      const exitMethod = fullscreenExit as keyof Document
+      if (typeof document[exitMethod] === 'function') {
+        (document[exitMethod] as Function)()
+      }
     }
+  }
+
+  if (windowState.value.status !== 'normal') {
+    resize(savedSize.value.width, savedSize.value.height)
+    move(savedPosition.value.x, savedPosition.value.y)
+  }
+
+  windowState.value.status = 'normal'
+  emit('restore')
 }
 
 const close = () => {
-    emit('close')
+  emit('close')
 }
 
-// Window movement and resize methods
-function addWindowListener(direction: string) {
-    const node = windowRef.value?.querySelector(`.wb-${direction}`)
-    if (!node) return
 
-    const handler = mousedownHandler(direction)
-    addListener(node, 'mousedown', handler, EVENT_OPTIONS)
-    addListener(node, 'touchstart', handler, EVENT_OPTIONS)
+// Methods
+const windowResizeHandler = () => {
+  root.value = {
+    width: window.innerWidth,
+    height: window.innerHeight
+  }
+}
+
+const windowFullscreenHandler = () => {
+  windowState.value.status = document.fullscreenElement === windowRef.value
+    ? 'full'
+    : 'normal'
+}
+
+// Create a reference to the mousedown handler
+const mousedownHandler = (direction: ResizeDirection | 'drag') => (evt: Event) => {
+  const e = evt as MouseEvent | TouchEvent
+  e.stopPropagation()
+  e.preventDefault()
+
+  focus()
+
+  if (direction === "drag") {
+    if (!props.noMax) {
+      const now = Date.now();
+      const diff = now - dragState.value.dblClickTimer;
+      dragState.value.dblClickTimer = now;
+      if (diff < 300) {
+        maximize()
+        return;
+      }
+    }
+
+    if (windowState.value.status !== 'normal') {
+      restore()
+      return
+    }
+  }
+
+  if (windowState.value.status === 'normal') {
+    document.body.classList.add('wb-lock')
+    dragState.value.direction = direction
+
+    const { pageX, pageY } = 'touches' in e
+      ? e.touches[0]
+      : e as MouseEvent
+
+    dragState.value.startX = pageX
+    dragState.value.startY = pageY
+    dragState.value.startPosX = position.value.x
+    dragState.value.startPosY = position.value.y
+    dragState.value.startWidth = size.value.width
+    dragState.value.startHeight = size.value.height
+
+    window.addEventListener('mousemove', mousemoveHandler)
+    window.addEventListener('mouseup', mouseupHandler)
+    window.addEventListener('touchmove', mousemoveHandler)
+    window.addEventListener('touchend', mouseupHandler)
+  }
+}
+
+// Event handlers
+const mousemoveHandler = (evt: Event) => {
+  const e = evt as MouseEvent | TouchEvent
+  const { pageX, pageY } = 'touches' in e ? e.touches[0] : e as MouseEvent
+  const deltaX = pageX - dragState.value.startX
+  const deltaY = pageY - dragState.value.startY
+
+  if (dragState.value.direction === 'drag') {
+    move(
+      dragState.value.startPosX + deltaX,
+      dragState.value.startPosY + deltaY
+    )
+  } else {
+    // Handle resize
+    let newWidth = dragState.value.startWidth
+    let newHeight = dragState.value.startHeight
+    let newX = dragState.value.startPosX
+    let newY = dragState.value.startPosY
+
+    if (dragState.value.direction.includes('e')) {
+      newWidth = dragState.value.startWidth + deltaX
+    }
+    if (dragState.value.direction.includes('w')) {
+      newWidth = dragState.value.startWidth - deltaX
+      newX = dragState.value.startPosX + deltaX
+    }
+    if (dragState.value.direction.includes('s')) {
+      newHeight = dragState.value.startHeight + deltaY
+    }
+    if (dragState.value.direction.includes('n')) {
+      newHeight = dragState.value.startHeight - deltaY
+      newY = dragState.value.startPosY + deltaY
+    }
+
+    move(newX, newY)
+    resize(newWidth, newHeight)
+  }
+}
+
+const mouseupHandler = () => {
+  document.body.classList.remove('wb-lock')
+  window.removeEventListener('mousemove', mousemoveHandler)
+  window.removeEventListener('mouseup', mouseupHandler)
+  window.removeEventListener('touchmove', mousemoveHandler)
+  window.removeEventListener('touchend', mouseupHandler)
 }
 
 // Lifecycle hooks
 onMounted(() => {
-    setup()
-    register()
+  const requestMethods = ['requestFullscreen', 'webkitRequestFullscreen', 'mozRequestFullscreen', 'msRequestFullscreen'];
+  fullscreenRequest = requestMethods.find(req => document.body[req as keyof HTMLElement]) || null;
 
-    // Initialize position and size
-    position.value = {
-        x: typeof props.x === 'number' ? props.x : root_w.value / 2 - Number(props.width) / 2,
-        y: typeof props.y === 'number' ? props.y : root_h.value / 2 - Number(props.height) / 2
-    }
+  const cancelMethods = ["exitFullscreen", "webkitExitFullscreen", "mozCancelFullScreen", "msExitFullscreen",];
+  fullscreenExit = cancelMethods.find(req => document[req as keyof Document]) || null;
 
-    size.value = {
-        width: Number(props.width),
-        height: Number(props.height)
-    }
+  position.value = {
+    x: typeof props.x === 'number' ? props.x : root.value.width / 2 - Number(props.width) / 2,
+    y: typeof props.y === 'number' ? props.y : root.value.height / 2 - Number(props.height) / 2
+  }
 
-    if (props.mount && windowRef.value) {
-        props.mount.appendChild(windowRef.value)
-    }
+  size.value = {
+    width: Number(props.width),
+    height: Number(props.height)
+  }
+
+  move(position.value.x, position.value.y)
+  resize(size.value.width, size.value.height)
+
+  window.addEventListener('resize', windowResizeHandler);
+  document.addEventListener('fullscreenchange', windowFullscreenHandler);
 })
 
 onBeforeUnmount(() => {
-    if (windowRef.value) {
-        const node = windowRef.value
-        const controls = node.querySelectorAll('.wb-control span')
-        controls.forEach(control => {
-            removeListener(control, 'click', preventEvent)
-        })
-
-        RESIZE_DIRECTIONS.forEach(dir => {
-            const handle = node.querySelector(`.wb-${dir}`)
-            if (handle) {
-                const handler = mousedownHandler(dir)
-                removeListener(handle, 'mousedown', handler)
-                removeListener(handle, 'touchstart', handler)
-            }
-        })
-    }
-
-    removeListener(window, 'resize', handleResize)
+  window.removeEventListener('resize', windowResizeHandler)
+  document.removeEventListener('fullscreenchange', windowFullscreenHandler)
 })
-
-// Helper functions
-function setup() {
-    prefix_request = ['requestFullscreen', 'webkitRequestFullscreen', 'mozRequestFullscreen', 'msRequestFullscreen']
-        .find(req => document.documentElement[req as keyof HTMLElement]) || null
-
-    addListener(window, 'resize', handleResize)
-}
-
-const register = () => {
-    if (!windowRef.value) return
-
-    addWindowListener('drag')
-    addWindowListener('n')
-    addWindowListener('s')
-    addWindowListener('w')
-    addWindowListener('e')
-    addWindowListener('nw')
-    addWindowListener('ne')
-    addWindowListener('se')
-    addWindowListener('sw')
-}
 </script>
-
-<style>
-@import '../assets/css/winbox.css';
-</style>

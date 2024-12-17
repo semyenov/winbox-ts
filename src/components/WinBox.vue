@@ -35,12 +35,13 @@ import { ref, computed, onMounted, onScopeDispose } from 'vue'
 import { RESIZE_DIRECTIONS } from './constants'
 import { useWindowControl } from '../composables/useWindowControl'
 import type { WinBoxProps, DragState, ResizeDirection } from './types'
+import { parse } from '../utils/parse'
 
 // Improve type safety with proper event types
 type DragEvent = MouseEvent | TouchEvent
 
 // Extract handler creation to a separate function for better organization
-const getPagePosition = (e: DragEvent) => {
+const getDragEventPagePosition = (e: DragEvent) => {
   const { pageX, pageY } = 'touches' in e
     ? e.touches[0]
     : e as MouseEvent
@@ -148,9 +149,10 @@ const mousedownHandler = (direction: ResizeDirection | 'drag', evt: Event) => {
 // Extract drag initialization logic
 const initializeDragState = (direction: ResizeDirection | 'drag', e: DragEvent) => {
   document.body.classList.add('wb-lock')
-  dragState.value.direction = direction
-  const { pageX, pageY } = getPagePosition(e)
+  const { pageX, pageY } = getDragEventPagePosition(e)
+
   Object.assign(dragState.value, {
+    direction,
     startX: pageX,
     startY: pageY,
     startPosX: state.value.position.x,
@@ -165,8 +167,8 @@ const initializeDragState = (direction: ResizeDirection | 'drag', e: DragEvent) 
 // Event handlers
 const mousemoveHandler = (evt: Event) => {
   const e = evt as MouseEvent | TouchEvent
-  const { pageX, pageY } = getPagePosition(e)
 
+  const { pageX, pageY } = getDragEventPagePosition(e)
   const deltaX = pageX - dragState.value.startX
   const deltaY = pageY - dragState.value.startY
 
@@ -238,14 +240,20 @@ const mouseupHandler = () => {
 
 // Lifecycle hooks
 onMounted(() => {
-  state.value.position = {
-    x: typeof props.x === 'number' ? props.x : window.innerWidth / 2 - Number(props.width) / 2,
-    y: typeof props.y === 'number' ? props.y : window.innerHeight / 2 - Number(props.height) / 2
-  }
+  const rootWidth = window.innerWidth
+  const rootHeight = window.innerHeight
 
   state.value.size = {
-    width: Number(props.width),
-    height: Number(props.height)
+    width: parse(props.width, rootWidth),
+    height: parse(props.height, rootHeight)
+  }
+  state.value.position = {
+    x: typeof props.x === 'number'
+      ? parse(props.x, rootWidth - state.value.size.width, state.value.size.width)
+      : parse(props.x || 'center', rootWidth, state.value.size.width),
+    y: typeof props.y === 'number'
+      ? parse(props.y, rootHeight - state.value.size.height, state.value.size.height)
+      : parse(props.y || 'center', rootHeight, state.value.size.height)
   }
 
   resize()

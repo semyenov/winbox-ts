@@ -30,7 +30,7 @@ interface WindowControlReturn {
     minWidth?: number,
     minHeight?: number,
     maxWidth?: number,
-    maxHeight?: number,
+    maxHeight?: number
   ) => void;
   focus: () => void;
   blur: () => void;
@@ -43,12 +43,9 @@ interface WindowControlReturn {
 
 export function useWindowControl(
   windowRef: Ref<HTMLElement | null>,
-  emit: EmitFn,
+  emit: EmitFn
 ): WindowControlReturn {
-  const {
-    width: rootWidth,
-    height: rootHeight,
-  } = useWindowSize();
+  const { width: windowWidth, height: windowHeight } = useWindowSize();
   const {
     isFullscreen,
     enter: enterFullscreen,
@@ -77,7 +74,7 @@ export function useWindowControl(
   // Refactor to use a single function for setting state properties
   const setStateProperty = <T extends keyof WindowState>(
     property: T,
-    value: WindowState[T],
+    value: WindowState[T]
   ) => {
     state.value[property] = value;
   };
@@ -116,22 +113,16 @@ export function useWindowControl(
     minWidth = 200,
     minHeight = 100,
     maxWidth = Infinity,
-    maxHeight = Infinity,
+    maxHeight = Infinity
   ) => {
     const newSize = {
       width: Math.min(
         maxWidth,
-        Math.max(
-          minWidth,
-          typeof w === "number" ? w : state.value.size.width,
-        ),
+        Math.max(minWidth, typeof w === "number" ? w : state.value.size.width)
       ),
       height: Math.min(
         maxHeight,
-        Math.max(
-          minHeight,
-          typeof h === "number" ? h : state.value.size.height,
-        ),
+        Math.max(minHeight, typeof h === "number" ? h : state.value.size.height)
       ),
     };
 
@@ -176,10 +167,7 @@ export function useWindowControl(
 
     const minHeight = 35;
     resize(0, minHeight);
-    move(
-      rootWidth.value / 2,
-      rootHeight.value - minHeight,
-    );
+    move(windowWidth.value / 2, windowHeight.value - minHeight);
 
     emit("minimize");
   };
@@ -194,8 +182,8 @@ export function useWindowControl(
     setStatus("max");
 
     // Account for potential taskbar/dock
-    const maxHeight = rootHeight.value - 5;
-    resize(rootWidth.value, maxHeight);
+    const maxHeight = windowHeight.value - 5;
+    resize(windowWidth.value, maxHeight);
     move(0, 0);
 
     emit("maximize");
@@ -240,7 +228,7 @@ export function useWindowControl(
     emit("close");
   };
 
-  watch([rootWidth, rootHeight], () => {
+  watch([windowWidth, windowHeight], () => {
     switch (state.value.status) {
       case "max":
         maximize(true);

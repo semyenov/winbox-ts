@@ -1,45 +1,64 @@
 <template>
-  <div :id="id" :class="['winbox', ...classNames]" ref="windowRef" :style="windowStyle">
+  <div :id="id" :class="{
+    'winbox': true,
+    modal: modal,
+    focus: state.focused,
+    min: state.status === 'min',
+    max: state.status === 'max',
+    full: state.status === 'full',
+    normal: state.status === 'normal',
+  }" ref="winbowRef" :style="winbowStyle">
     <!-- Header -->
     <div class="wb-header">
       <!-- Controls -->
       <div class="wb-control">
-        <span v-if="!noMin" class="wb-min" @click.prevent="minimize(false)" />
-        <span v-if="!noMax" class="wb-max" @click.prevent="maximize(false)" />
-        <span v-if="!noFull" class="wb-full" @click.prevent="fullscreen(false)" />
-        <span v-if="!noClose" class="wb-close" @click.prevent="close(false)" />
+        <span v-if="!noMin" class="wb-min" @click="minimize(false)" />
+        <span v-if="!noMax" class="wb-max" @click="maximize(false)" />
+        <span v-if="!noFull" class="wb-full" @click="fullscreen(false)" />
+        <span v-if="!noClose" class="wb-close" @click="close(false)" />
       </div>
       <!-- Drag -->
-      <div class="wb-drag" @mousedown="mousedownHandler('drag', 'n', $event)"
-        @touchstart="mousedownHandler('drag', 'n', $event)">
-        <!-- Icon -->
+      <div class="wb-drag" @mousedown="(e: DragEvent) => dragStart('drag', undefined, e)"
+        @touchstart="(e: DragEvent) => dragStart('drag', undefined, e)">
         <div v-if="icon" class="wb-icon" />
-        <!-- Title -->
         <div class="wb-title">
-          <slot v-if="$slots.title" name="title" :title="title" />
+          <slot v-if="slots.title" name="title" :title="title" />
           <span v-else v-text="title" />
         </div>
       </div>
     </div>
     <!-- Body -->
     <div class="wb-body">
-      <slot v-if="$slots.default" name="default" />
+      <slot />
     </div>
     <!-- Resize handles -->
     <div v-for="dir in RESIZE_DIRECTIONS" :key="dir" :class="`wb-${dir}`"
-      @mousedown="mousedownHandler('resize', dir, $event)" @touchstart="mousedownHandler('resize', dir, $event)" />
+      @mousedown="(e: DragEvent) => dragStart('resize', dir, e)"
+      @touchstart="(e: DragEvent) => dragStart('resize', dir, e)" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onScopeDispose } from 'vue'
-import { RESIZE_DIRECTIONS } from './constants'
-import { useWindowControl } from '../composables/useWindowControl'
-import type { WinBoxProps, DragState, DragStateType, DragStateDirection } from './types'
+import { ref, computed, onMounted, onScopeDispose, type VNode, useTemplateRef } from 'vue'
+
+import { useWinBoxControl } from '../composables/useWindowControl'
 import { parse } from '../utils/parse'
 
-// Improve type safety with proper event types
+import type { WinBoxProps, DragState, DragStateType, DragStateDirection, DragStateParams } from './types'
+
 type DragEvent = MouseEvent | TouchEvent
+
+const EVENT_OPTIONS = { passive: false } as const;
+const RESIZE_DIRECTIONS: DragStateDirection[] = [
+  "n",
+  "s",
+  "w",
+  "e",
+  "nw",
+  "ne",
+  "se",
+  "sw",
+] as const;
 
 // Extract handler creation to a separate function for better organization
 const getDragEventPosition = (e: DragEvent) => {
@@ -76,9 +95,39 @@ const emit = defineEmits<{
   resize: [number, number],
 }>()
 
-// Improve ID generation with a more reliable method
+const slots = defineSlots<{
+  default?: () => VNode
+  title?: (props: { title: string }) => VNode
+}>()
+
 const id = ref(`winbox-${crypto.randomUUID()}`)
-const windowRef = ref<HTMLElement | null>(null)
+const winbowRef = useTemplateRef('winbowRef')
+
+const {
+  innerWidth: windowWidth,
+  innerHeight: windowHeight
+} = window
+
+const maxHeight = props.maxHeight ? parse(props.maxHeight, windowHeight) : Infinity;
+const maxWidth = props.maxWidth ? parse(props.maxWidth, windowWidth) : Infinity;
+const minHeight = props.minHeight ? parse(props.minHeight, maxHeight) : 100;
+const minWidth = props.minWidth ? parse(props.minWidth, maxWidth) : 200;
+
+const startWidth = Math.max(
+  Math.min(props.width ? parse(props.width, maxWidth) : 500, maxWidth),
+  minWidth
+);
+const startHeight = Math.max(
+  Math.min(props.height ? parse(props.height, maxHeight) : 300, maxHeight),
+  minHeight
+);
+
+const startPosX = props.x
+  ? parse(props.modal ? "center" : props.x, windowWidth, maxWidth)
+  : windowWidth / 2;
+const startPosY = props.y
+  ? parse(props.modal ? "center" : props.y, windowHeight, maxHeight)
+  : windowHeight / 2;
 
 // Use window control composable with proper emit typing
 const {
@@ -91,23 +140,29 @@ const {
   fullscreen,
   move,
   resize
-} = useWindowControl(windowRef, emit)
+} = useWinBoxControl(winbowRef, {
+  maxHeight,
+  maxWidth,
+  minHeight,
+  minWidth,
+  emit
+})
 
 // Drag state with proper typing
 const dragState = ref<DragState>({
   type: 'drag',
-  direction: 'n',
+  params: 'n',
   startX: 0,
   startY: 0,
-  startPosX: 0,
-  startPosY: 0,
-  startWidth: 0,
-  startHeight: 0,
+  startPosX,
+  startPosY,
+  startWidth,
+  startHeight,
   dblClickTimer: 0,
 })
 
 // Computed properties
-const windowStyle = computed(() => ({
+const winbowStyle = computed(() => ({
   width: `${state.value.size.width}px`,
   height: `${state.value.size.height}px`,
   left: `${state.value.position.x}px`,
@@ -116,67 +171,103 @@ const windowStyle = computed(() => ({
   zIndex: props.index
 }))
 
-const classNames = computed(() => {
-  const classes: string[] = []
-  if (props.modal) classes.push('modal')
-  if (state.value.status !== 'normal') classes.push(state.value.status)
-  if (state.value.active) classes.push('focus')
-  return classes
-})
-
 // Event handlers
-const mousemoveHandler = (evt: Event) => {
+const dragMove = (evt: Event) => {
   const e = evt as MouseEvent | TouchEvent
 
-  const { x, y } = getDragEventPosition(e)
-  const deltaX = x - dragState.value.startX
-  const deltaY = y - dragState.value.startY
+  const {
+    startX,
+    startY
+  } = dragState.value
+  const {
+    x,
+    y
+  } = getDragEventPosition(e)
 
-  if (dragState.value.type === 'drag') {
+  const deltaX = x - startX
+  const deltaY = y - startY
+
+  const {
+    type,
+    params,
+    startPosX,
+    startPosY,
+    startWidth,
+    startHeight
+  } = dragState.value
+
+  if (type === 'drag') {
     move(
-      dragState.value.startPosX + deltaX,
-      dragState.value.startPosY + deltaY
+      startPosX + deltaX,
+      startPosY + deltaY
     )
+
     return
   }
 
-  // Handle resize
-  let newX = dragState.value.startPosX
-  let newY = dragState.value.startPosY
-  let newWidth = dragState.value.startWidth
-  let newHeight = dragState.value.startHeight
+  let newX = startPosX
+  let newY = startPosY
+  let newWidth = startWidth
+  let newHeight = startHeight
 
-  if (dragState.value.direction.includes('e')) {
-    newWidth = dragState.value.startWidth + deltaX
+  const dir = params as DragStateDirection
+
+  if (dir.indexOf('e') !== -1) {
+    newWidth = startWidth + deltaX
   }
-  if (dragState.value.direction.includes('w')) {
-    newWidth = dragState.value.startWidth - deltaX
-    newX = dragState.value.startPosX + deltaX
+  if (dir.indexOf('w') !== -1) {
+    newWidth = startWidth - deltaX
+    newX = startPosX + deltaX
   }
-  if (dragState.value.direction.includes('s')) {
-    newHeight = dragState.value.startHeight + deltaY
+  if (dir.indexOf('s') !== -1) {
+    newHeight = startHeight + deltaY
   }
-  if (dragState.value.direction.includes('n')) {
-    newHeight = dragState.value.startHeight - deltaY
-    newY = dragState.value.startPosY + deltaY
+  if (dir.indexOf('n') !== -1) {
+    newHeight = startHeight - deltaY
+    newY = startPosY + deltaY
   }
 
-  const resized = resize(newWidth, newHeight)
-  if (resized) move(newX, newY)
+  const {
+    x: currentX,
+    y: currentY
+  } = state.value.position;
+
+  const [
+    isWidthResized,
+    isHeightResized
+  ] = resize(
+    newWidth,
+    newHeight
+  )
+  move(
+    isWidthResized
+      ? newX
+      : currentX,
+    isHeightResized
+      ? newY
+      : currentY
+  )
 }
 
-const mouseupHandler = () => {
+const dragStop = () => {
   document.body.classList.remove('wb-lock')
-  window.removeEventListener('mousemove', mousemoveHandler)
-  window.removeEventListener('mouseup', mouseupHandler)
-  window.removeEventListener('touchmove', mousemoveHandler)
-  window.removeEventListener('touchend', mouseupHandler)
+
+  // Remove mouse events
+  window.removeEventListener('mousemove', dragMove)
+  window.removeEventListener('mouseup', dragStop)
+
+  // Remove touch events
+  window.removeEventListener('touchmove', dragMove)
+  window.removeEventListener('touchend', dragStop)
 }
-// Improve mousedown handler with better type safety
-const mousedownHandler = (type: DragStateType, direction: DragStateDirection, evt: Event) => {
-  const e = evt as DragEvent
-  e.stopPropagation()
-  e.preventDefault()
+
+const dragStart = <T extends DragStateType>(
+  type: T,
+  params: DragStateParams<T>,
+  evt: DragEvent
+) => {
+  evt.stopPropagation()
+  evt.preventDefault()
 
   focus()
 
@@ -192,37 +283,45 @@ const mousedownHandler = (type: DragStateType, direction: DragStateDirection, ev
       }
     }
 
+    if (state.value.status !== 'normal') {
+      restore()
+      return
+    }
   }
 
-  if (state.value.status !== 'normal') {
-    restore()
-    return
-  }
+  const {
+    position: { x: startPosX, y: startPosY },
+    size: { width: startWidth, height: startHeight }
+  } = state.value
+  const {
+    x: startX,
+    y: startY
+  } = getDragEventPosition(evt)
 
-  const { x, y } = getDragEventPosition(e)
   Object.assign<DragState, Partial<DragState>>(dragState.value, {
     type,
-    direction,
-    startX: x,
-    startY: y,
-    startPosX: state.value.position.x,
-    startPosY: state.value.position.y,
-    startWidth: state.value.size.width,
-    startHeight: state.value.size.height,
+    params,
+    startX,
+    startY,
+    startPosX,
+    startPosY,
+    startWidth,
+    startHeight,
   })
 
   document.body.classList.add('wb-lock')
-  window.addEventListener('mousemove', mousemoveHandler)
-  window.addEventListener('mouseup', mouseupHandler)
-  window.addEventListener('touchmove', mousemoveHandler)
-  window.addEventListener('touchend', mouseupHandler)
+
+  // Add mouse events
+  window.addEventListener('mousemove', dragMove, EVENT_OPTIONS)
+  window.addEventListener('mouseup', dragStop, EVENT_OPTIONS)
+
+  // Add touch events
+  window.addEventListener('touchmove', dragMove, EVENT_OPTIONS)
+  window.addEventListener('touchend', dragStop, EVENT_OPTIONS)
 }
 
 // Lifecycle hooks
 onMounted(() => {
-  const windowWidth = window.innerWidth
-  const windowHeight = window.innerHeight
-
   const size = {
     width: parse(props.width, windowWidth),
     height: parse(props.height, windowHeight)
@@ -236,9 +335,19 @@ onMounted(() => {
       : parse(props.y || 'center', windowHeight, size.height)
   }
 
-  const resized = resize(size.width, size.height)
-  if (resized) move(position.x, position.y)
+  const [
+    resizedWidth,
+    resizedHeight
+  ] = resize(size.width, size.height)
+  move(
+    resizedWidth
+      ? position.x
+      : startPosX,
+    resizedHeight
+      ? position.y
+      : startPosY
+  )
 })
 
-onScopeDispose(mouseupHandler)
+onScopeDispose(dragStop)
 </script>

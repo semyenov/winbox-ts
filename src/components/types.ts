@@ -10,7 +10,7 @@ export interface WindowSize {
 
 export interface WindowState {
   status: "normal" | "min" | "max" | "full";
-  active: boolean;
+  focused: boolean;
   position: WindowPosition;
   size: WindowSize;
 }
@@ -25,14 +25,15 @@ export type DragStateDirection =
   | "se"
   | "sw";
 
-export type DragStateResizeType = `resize`;
-export type DragStateDragType = `drag`;
+export type DragStateType = "resize" | "drag";
+export type DragStateParams<T extends DragStateType> = T extends "resize"
+  ? DragStateDirection
+  : undefined;
 
-export type DragStateType = DragStateResizeType | DragStateDragType;
+export interface DragState<T extends DragStateType = DragStateType> {
+  type: T;
+  params: DragStateParams<T>;
 
-export interface DragState {
-  type: DragStateType;
-  direction: DragStateDirection;
   startX: number;
   startY: number;
   startPosX: number;
@@ -60,16 +61,4 @@ export interface WinBoxProps {
   background?: string;
   icon?: string;
   index?: number;
-}
-
-export interface WinBoxEmits {
-  close: [];
-  focus: [];
-  blur: [];
-  minimize: [];
-  maximize: [];
-  restore: [];
-  fullscreen: [];
-  move: [x: number, y: number];
-  resize: [width: number, height: number];
 }

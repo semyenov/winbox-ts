@@ -6,7 +6,7 @@ import type {
 } from "../components/types";
 import { useFullscreen, useWindowSize } from "@vueuse/core";
 
-// Improve type safety for emit
+// // Improve type safety for emit
 type EmitFn = {
   (event: "move", x: number, y: number): void;
   (event: "resize", width: number, height: number): void;
@@ -19,21 +19,26 @@ type EmitFn = {
   (event: "close"): void;
 };
 
-interface WindowControlReturn {
+interface WinBoxControlReturn {
   state: Ref<WindowState>;
   save: () => void;
 
-  move: (x?: number, y?: number) => boolean;
+  move: (
+    x?: number,
+    y?: number,
+  ) => [boolean, boolean];
   resize: (
-    w?: number,
-    h?: number,
+    width?: number,
+    height?: number,
     minWidth?: number,
     minHeight?: number,
     maxWidth?: number,
-    maxHeight?: number
-  ) => boolean;
+    maxHeight?: number,
+  ) => [boolean, boolean];
+
   focus: () => void;
   blur: () => void;
+
   minimize: (force?: boolean) => void;
   maximize: (force?: boolean) => void;
   fullscreen: (force?: boolean) => void;
@@ -41,120 +46,163 @@ interface WindowControlReturn {
   close: (force?: boolean) => void;
 }
 
-export function useWindowControl(
+export function useWinBoxControl(
   windowRef: Ref<HTMLElement | null>,
-  emit: EmitFn
-): WindowControlReturn {
-  const { width: windowWidth, height: windowHeight } = useWindowSize();
+  params: {
+    minWidth?: number;
+    minHeight?: number;
+    maxWidth?: number;
+    maxHeight?: number;
+    emit: EmitFn;
+  },
+): WinBoxControlReturn {
+  const {
+    width: windowWidth,
+    height: windowHeight,
+  } = useWindowSize();
+
+  const {
+    // minWidth = 200,
+    // maxWidth = windowWidth.value,
+    // maxHeight = windowHeight.value,
+    minHeight = 100,
+    emit,
+  } = params;
+
   const {
     isFullscreen,
     enter: enterFullscreen,
     exit: exitFullscreen,
-  } = useFullscreen(windowRef);
+  } = useFullscreen(windowRef, {
+    autoExit: true,
+  });
 
   const state = ref<WindowState>({
-    active: false,
+    focused: false,
     status: "normal",
     position: { x: 0, y: 0 },
     size: { width: 0, height: 0 },
   });
 
   const saved = ref<WindowState>({
-    active: false,
+    focused: false,
     status: "normal",
     position: { x: 0, y: 0 },
     size: { width: 0, height: 0 },
   });
 
+  const isNormal = computed(() => state.value.status === "normal");
   const isMinimized = computed(() => state.value.status === "min");
   const isMaximized = computed(() => state.value.status === "max");
-  const isNormal = computed(() => state.value.status === "normal");
-  const isActive = computed(() => state.value.active);
+  const isFocused = computed(() => state.value.focused);
 
-  // Refactor to use a single function for setting state properties
   const setStateProperty = <T extends keyof WindowState>(
     property: T,
-    value: WindowState[T]
+    value: WindowState[T],
   ) => {
     state.value[property] = value;
   };
 
-  // Update methods to use setStateProperty
   const setStatus = (status: WindowState["status"]) =>
-    setStateProperty("status", status);
-  const setActive = (active: boolean) => setStateProperty("active", active);
+    setStateProperty(
+      "status",
+      status,
+    );
   const setPosition = (position: WindowPosition) =>
-    setStateProperty("position", position);
-  const setSize = (size: WindowSize) => setStateProperty("size", size);
+    setStateProperty(
+      "position",
+      position,
+    );
+  const setSize = (size: WindowSize) =>
+    setStateProperty(
+      "size",
+      size,
+    );
+  const setFocused = (focused: boolean) =>
+    setStateProperty(
+      "focused",
+      focused,
+    );
 
   // Window state snapshot
   const save = () => {
-    if (isNormal.value) saved.value = { ...state.value };
+    saved.value.focused = state.value.focused;
+
+    if (isNormal.value) {
+      saved.value.position = state.value.position;
+      saved.value.size = state.value.size;
+    }
   };
 
-  const move = (x?: number, y?: number) => {
-    const newPosition = {
-      x: typeof x === "number" ? x : state.value.position.x,
-      y: typeof y === "number" ? y : state.value.position.y,
-    };
+  const move = (x?: number, y?: number): [boolean, boolean] => {
+    const { x: currentX, y: currentY } = state.value.position;
+    const newX = typeof x === "number" ? x : currentX;
+    const newY = typeof y === "number" ? y : currentY;
 
-    if (
-      newPosition.x !== state.value.position.x ||
-      newPosition.y !== state.value.position.y
-    ) {
-      setPosition(newPosition);
-      emit("move", newPosition.x, newPosition.y);
-      return true;
+    const isXChanged = newX !== currentX;
+    const isYChanged = newY !== currentY;
+
+    if (isXChanged || isYChanged) {
+      setPosition({ x: newX, y: newY });
+      emit("move", newX, newY);
+      return [isXChanged, isYChanged];
     }
 
-    return false;
+    return [false, false];
   };
 
   const resize = (
-    w?: number,
-    h?: number,
+    width?: number,
+    height?: number,
     minWidth = 200,
     minHeight = 100,
-    maxWidth = Infinity,
-    maxHeight = Infinity
-  ) => {
-    const newSize = {
-      width: Math.min(
-        maxWidth,
-        Math.max(minWidth, typeof w === "number" ? w : state.value.size.width)
-      ),
-      height: Math.min(
-        maxHeight,
-        Math.max(minHeight, typeof h === "number" ? h : state.value.size.height)
-      ),
-    };
+    maxWidth = windowWidth.value,
+    maxHeight = windowHeight.value,
+  ): [boolean, boolean] => {
+    const {
+      width: currentWidth,
+      height: currentHeight,
+    } = state.value.size;
 
-    if (
-      newSize.width !== state.value.size.width ||
-      newSize.height !== state.value.size.height
-    ) {
-      setSize(newSize);
-      emit("resize", newSize.width, newSize.height);
-      return true;
+    const newWidth = Math.min(
+      maxWidth,
+      Math.max(
+        minWidth,
+        typeof width === "number" ? width : currentWidth,
+      ),
+    );
+    const newHeight = Math.min(
+      maxHeight,
+      Math.max(
+        minHeight,
+        typeof height === "number" ? height : currentHeight,
+      ),
+    );
+
+    const isWidthChanged = newWidth !== currentWidth;
+    const isHeightChanged = newHeight !== currentHeight;
+
+    if (isWidthChanged || isHeightChanged) {
+      setSize({ width: newWidth, height: newHeight });
+      emit("resize", newWidth, newHeight);
+      return [isWidthChanged, isHeightChanged];
     }
 
-    return false;
+    return [false, false];
   };
 
-  // Add focus method
   const focus = () => {
-    if (!isActive.value) {
-      setActive(true);
+    if (!isFocused.value) {
+      setFocused(true);
       emit("focus");
     }
 
     save();
   };
 
-  // Add blur method
   const blur = () => {
-    if (isActive.value) {
-      setActive(false);
+    if (isFocused.value) {
+      setFocused(false);
       emit("blur");
     }
 
@@ -162,63 +210,73 @@ export function useWindowControl(
   };
 
   // Window control methods
-  const minimize = (force = false) => {
-    if (isMinimized.value && !force) {
-      restore();
-      return;
+  const minimize = async (force = false) => {
+    if (!isNormal.value && !force) {
+      const ok = isMinimized.value;
+      await restore();
+
+      if (ok) return;
     }
 
     save();
     setStatus("min");
 
-    const minHeight = 35;
     resize(0, minHeight);
     move(0, windowHeight.value - minHeight);
 
     emit("minimize");
   };
 
-  const maximize = (force = false) => {
-    if (isMaximized.value && !force) {
-      restore();
-      return;
+  const maximize = async (force = false) => {
+    if (!isNormal.value && !force) {
+      const ok = isMaximized.value;
+      await restore();
+
+      if (ok) return;
     }
 
     save();
     setStatus("max");
 
-    // Account for potential taskbar/dock
-    const maxHeight = windowHeight.value - 5;
-    resize(windowWidth.value, maxHeight);
+    resize(windowWidth.value, windowHeight.value);
     move(0, 0);
 
     emit("maximize");
   };
 
-  const fullscreen = (force = false) => {
-    if (isFullscreen.value && !force) {
-      restore();
-      return;
+  const fullscreen = async (force = false) => {
+    if (!isNormal.value && !force) {
+      const ok = isFullscreen.value;
+      await restore();
+
+      if (ok) return;
     }
 
     save();
-    enterFullscreen();
-
+    setStatus("full");
+    await enterFullscreen();
     emit("fullscreen");
   };
 
-  const restore = () => {
-    if (!isNormal.value) {
-      exitFullscreen();
-      resize(saved.value.size.width, saved.value.size.height);
-      move(saved.value.position.x, saved.value.position.y);
-      setStatus("normal");
+  const restore = async () => {
+    if (isFullscreen.value) {
+      await exitFullscreen();
     }
 
+    const {
+      size: { width: savedWidth, height: savedHeight },
+      position: { x: savedX, y: savedY },
+    } = saved.value;
+
+    resize(savedWidth, savedHeight);
+    move(savedX, savedY);
+
+    setStatus("normal");
     emit("restore");
   };
 
   const close = () => {
+    save();
     emit("close");
   };
 
@@ -233,19 +291,16 @@ export function useWindowControl(
     }
   });
 
-  watch([isFullscreen], ([newIsFullscreen]) => {
-    console.log(newIsFullscreen);
-    setStatus(newIsFullscreen ? "full" : "normal");
-  });
-
   return {
     state,
-
     save,
+
     move,
     resize,
+
     focus,
     blur,
+
     minimize,
     maximize,
     fullscreen,

@@ -1,10 +1,5 @@
 export type ResizeDirection = "n" | "s" | "w" | "e" | "nw" | "ne" | "se" | "sw";
 
-export interface WindowState {
-  status: "normal" | "min" | "max" | "full";
-  active: boolean;
-}
-
 export interface WindowPosition {
   x: number;
   y: number;
@@ -13,6 +8,13 @@ export interface WindowPosition {
 export interface WindowSize {
   width: number;
   height: number;
+}
+
+export interface WindowState {
+  status: "normal" | "min" | "max" | "full";
+  active: boolean;
+  position: WindowPosition;
+  size: WindowSize;
 }
 
 export interface DragState {

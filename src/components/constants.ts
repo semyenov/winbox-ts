@@ -1,4 +1,4 @@
-import { ResizeDirection } from "./types";
+import type { ResizeDirection } from "./types";
 
 // Window resize directions
 export const EVENT_OPTIONS = { passive: false } as const;

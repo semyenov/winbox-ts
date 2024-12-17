@@ -336,14 +336,14 @@ onMounted(() => {
   }
 
   const [
-    resizedWidth,
-    resizedHeight
+    isWidthResized,
+    isHeightResized
   ] = resize(size.width, size.height)
   move(
-    resizedWidth
+    isWidthResized
       ? position.x
       : startPosX,
-    resizedHeight
+    isHeightResized
       ? position.y
       : startPosY
   )

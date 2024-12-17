@@ -1,5 +1,3 @@
-export type ResizeDirection = "n" | "s" | "w" | "e" | "nw" | "ne" | "se" | "sw";
-
 export interface WindowPosition {
   x: number;
   y: number;
@@ -17,8 +15,24 @@ export interface WindowState {
   size: WindowSize;
 }
 
+export type DragStateDirection =
+  | "n"
+  | "s"
+  | "w"
+  | "e"
+  | "nw"
+  | "ne"
+  | "se"
+  | "sw";
+
+export type DragStateResizeType = `resize`;
+export type DragStateDragType = `drag`;
+
+export type DragStateType = DragStateResizeType | DragStateDragType;
+
 export interface DragState {
-  direction: ResizeDirection | "drag";
+  type: DragStateType;
+  direction: DragStateDirection;
   startX: number;
   startY: number;
   startPosX: number;

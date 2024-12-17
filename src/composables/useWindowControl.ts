@@ -23,7 +23,7 @@ interface WindowControlReturn {
   state: Ref<WindowState>;
   save: () => void;
 
-  move: (x?: number, y?: number) => void;
+  move: (x?: number, y?: number) => boolean;
   resize: (
     w?: number,
     h?: number,
@@ -31,7 +31,7 @@ interface WindowControlReturn {
     minHeight?: number,
     maxWidth?: number,
     maxHeight?: number
-  ) => void;
+  ) => boolean;
   focus: () => void;
   blur: () => void;
   minimize: (force?: boolean) => void;
@@ -104,7 +104,10 @@ export function useWindowControl(
     ) {
       setPosition(newPosition);
       emit("move", newPosition.x, newPosition.y);
+      return true;
     }
+
+    return false;
   };
 
   const resize = (
@@ -132,7 +135,10 @@ export function useWindowControl(
     ) {
       setSize(newSize);
       emit("resize", newSize.width, newSize.height);
+      return true;
     }
+
+    return false;
   };
 
   // Add focus method
@@ -167,7 +173,7 @@ export function useWindowControl(
 
     const minHeight = 35;
     resize(0, minHeight);
-    move(windowWidth.value / 2, windowHeight.value - minHeight);
+    move(0, windowHeight.value - minHeight);
 
     emit("minimize");
   };
@@ -196,31 +202,19 @@ export function useWindowControl(
     }
 
     save();
-    setStatus("full");
-
     enterFullscreen();
-    emit("fullscreen");
 
-    return;
+    emit("fullscreen");
   };
 
-  const restore = (force = false) => {
-    if (isNormal.value && !force) {
-      return;
+  const restore = () => {
+    if (!isNormal.value) {
+      exitFullscreen();
+      resize(saved.value.size.width, saved.value.size.height);
+      move(saved.value.position.x, saved.value.position.y);
+      setStatus("normal");
     }
 
-    switch (state.value.status) {
-      case "max":
-      case "min":
-        resize(saved.value.size.width, saved.value.size.height);
-        move(saved.value.position.x, saved.value.position.y);
-        break;
-      case "full":
-        exitFullscreen();
-        break;
-    }
-
-    setStatus("normal");
     emit("restore");
   };
 
@@ -240,7 +234,8 @@ export function useWindowControl(
   });
 
   watch([isFullscreen], ([newIsFullscreen]) => {
-    if (newIsFullscreen) state.value.status = "full";
+    console.log(newIsFullscreen);
+    setStatus(newIsFullscreen ? "full" : "normal");
   });
 
   return {

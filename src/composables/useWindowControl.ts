@@ -1,5 +1,9 @@
 import { computed, type Ref, ref, watch } from "vue";
-import type { WindowState } from "../components/types";
+import type {
+  WindowPosition,
+  WindowSize,
+  WindowState,
+} from "../components/types";
 import { useFullscreen, useWindowSize } from "@vueuse/core";
 
 // Improve type safety for emit
@@ -65,29 +69,28 @@ export function useWindowControl(
     size: { width: 0, height: 0 },
   });
 
-  // Window state
   const isMinimized = computed(() => state.value.status === "min");
   const isMaximized = computed(() => state.value.status === "max");
   const isNormal = computed(() => state.value.status === "normal");
-  const setStatus = (status: WindowState["status"]) => {
-    state.value.status = status;
-  };
-
-  // Window active state
   const isActive = computed(() => state.value.active);
-  const setActive = (active: boolean) => {
-    state.value.active = active;
+
+  // Refactor to use a single function for setting state properties
+  const setStateProperty = <T extends keyof WindowState>(
+    property: T,
+    value: WindowState[T],
+  ) => {
+    state.value[property] = value;
   };
 
-  const setPosition = (position: WindowPosition) => {
-    state.value.position = position;
-  };
+  // Update methods to use setStateProperty
+  const setStatus = (status: WindowState["status"]) =>
+    setStateProperty("status", status);
+  const setActive = (active: boolean) => setStateProperty("active", active);
+  const setPosition = (position: WindowPosition) =>
+    setStateProperty("position", position);
+  const setSize = (size: WindowSize) => setStateProperty("size", size);
 
-  const setSize = (size: WindowSize) => {
-    state.value.size = size;
-  };
-
-  // Add window state snapshot utility
+  // Window state snapshot
   const save = () => {
     if (isNormal.value) saved.value = { ...state.value };
   };
